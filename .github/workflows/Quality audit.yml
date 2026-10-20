@@ -1,0 +1,56 @@
+name: Quality audit
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "auto = build and email | test = build xlsx only, no email"
+        required: false
+        default: "auto"
+        type: choice
+        options: ["auto", "test"]
+      report_date:
+        description: "Report date YYYY-MM-DD (empty = yesterday KSA)"
+        required: false
+        default: ""
+      days:
+        description: "Number of days ending on report_date (1 = single day, 7 = week)"
+        required: false
+        default: "1"
+
+jobs:
+  quality_audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      TZ: Asia/Riyadh
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Build and send quality audit
+        env:
+          ZENPUT_API_TOKEN: ${{ secrets.ZENPUT_API_TOKEN }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          MODE: ${{ github.event.inputs.mode || 'auto' }}
+          REPORT_DATE: ${{ github.event.inputs.report_date || '' }}
+          DAYS: ${{ github.event.inputs.days || '1' }}
+        run: python quality_audit.py
+
+      - name: Upload xlsx
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: quality-audit
+          path: quality_time_location_audit_*.xlsx
+          if-no-files-found: ignore
+          retention-days: 14
