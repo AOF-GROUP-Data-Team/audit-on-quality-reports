@@ -43,6 +43,7 @@ MAX_DISTANCE    = 0.5     # in Zenput's distance unit (see printout) — farther
 MAX_DURATION_H  = 4       # form open longer than this = "Too long"
 MIN_DURATION_M  = 10      # shorter than this = "Too short"
 SAME_SPOT_DEC   = 4       # lat/lng rounded to 4 decimals (~11 m) for "same spot, different branches"
+NO_SHORT_CHECK_TEMPLATES = {709112}   # templates where short visits are not a violation
 
 # ---------------- helpers ----------------
 def parse_local(s):
@@ -170,7 +171,9 @@ def flags(r):
     if r["_spot"] and (r["Inspector"], r["_spot"]) in multi_spot:
         f.append("Same spot, different branches")
     if r["_ttc"] is not None and r["_ttc"] > MAX_DURATION_H * 3600: f.append("Too long")
-    if r["_ttc"] is not None and r["_ttc"] < MIN_DURATION_M * 60:  f.append("Too short")
+    if (r["_ttc"] is not None and r["_ttc"] < MIN_DURATION_M * 60
+            and int(r["Template"]) not in NO_SHORT_CHECK_TEMPLATES):
+        f.append("Too short")
     if not pd.isna(r["_gap"]) and r["_gap"] < 0 and r["Prev Branch"] != r["Branch"]:
         f.append("Overlaps previous branch")
     return ", ".join(f)
@@ -241,6 +244,7 @@ def cell(v, red=False):
 def build_html():
     total = len(out)
     flagged = int((out["Violations"] != "").sum())
+    exempt = "، ".join(str(t) for t in sorted(NO_SHORT_CHECK_TEMPLATES))
     # table 1: totals by violation type
     t1 = "".join(f"<tr><td style='{TD}'>{KIND_AR[k]}</td>{cell(int(summ[k].sum()), True)}</tr>" for k in kinds)
     # table 2: per inspector
@@ -263,7 +267,7 @@ def build_html():
 <tr><th style="{TH}">المفتش</th><th style="{TH}">الزيارات</th>{hdr}<th style="{TH}">زيارات بها مخالفة</th></tr>{t2}
 </table>
 <p style="margin-top:14px;color:#555">معايير المخالفة: الموقع مغلق = لا توجد بيانات موقع؛ بعيد عن الفرع = المسافة أكبر من {MAX_DISTANCE}؛
-مدة طويلة = أكثر من {MAX_DURATION_H} ساعات؛ مدة قصيرة = أقل من {MIN_DURATION_M} دقائق؛
+مدة طويلة = أكثر من {MAX_DURATION_H} ساعات؛ مدة قصيرة = أقل من {MIN_DURATION_M} دقائق (لا تنطبق على النموذج <span dir="ltr">{exempt}</span>)؛
 تداخل = بدء زيارة قبل تسليم زيارة فرع آخر.</p>
 <p>تفاصيل جميع الزيارات في الملف المرفق.</p>
 <p>مع خالص التحية،<br>إدارة ذكاء الأعمال</p>
